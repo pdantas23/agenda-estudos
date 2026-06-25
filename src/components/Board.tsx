@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -17,13 +17,16 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { BACKLOG_ID, DIAS, ESTADO_INICIAL } from "@/lib/mock";
+import { BACKLOG_ID, DIAS } from "@/lib/mock";
 import {
   addDays,
   formatWeekRange,
   mesmaData,
   startOfWeekMonday,
+  toISODate,
 } from "@/lib/date";
+import { fetchWeek, saveWeek } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { BoardState, ColumnId, StudyCard } from "@/lib/types";
 import AddCardForm from "./AddCardForm";
 import Column from "./Column";
@@ -35,26 +38,106 @@ const emptyBoard = (): BoardState => ({
 });
 
 export default function Board() {
-  // Cada semana (offset relativo à atual) tem seu próprio board.
-  // offset 0 = semana atual, com o conteúdo mock; demais começam vazias.
-  const [boards, setBoards] = useState<Record<number, BoardState>>({
-    0: ESTADO_INICIAL,
-  });
+  const { session, logout } = useAuth();
+
+  const [board, setBoard] = useState<BoardState>(emptyBoard);
   const [offset, setOffset] = useState(0);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
 
-  // Datas vêm do relógio do sistema, então são lidas apenas no client
-  // (após mount) para evitar divergência de hidratação servidor/navegador.
+  // boardRef espelha o estado para cálculos síncronos durante o arraste.
+  const boardRef = useRef<BoardState>(board);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Relógio do sistema (client-only). É reavaliado periodicamente para que,
+  // na virada da semana, a semana atual passe a apontar para a nova segunda
+  // — a renovação automática.
   const [agora, setAgora] = useState<{ monday: Date; hoje: Date } | null>(null);
   useEffect(() => {
-    const d = new Date();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza com o relógio (client-only)
-    setAgora({ monday: startOfWeekMonday(d), hoje: d });
+    const compute = () => ({
+      monday: startOfWeekMonday(new Date()),
+      hoje: new Date(),
+    });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- leitura inicial do relógio
+    setAgora(compute());
+
+    const tick = () =>
+      setAgora((prev) => {
+        const next = compute();
+        return prev && toISODate(prev.monday) === toISODate(next.monday)
+          ? prev
+          : next;
+      });
+    const id = setInterval(tick, 60_000);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", tick);
+    };
   }, []);
 
   const hoje = agora?.hoje ?? null;
-  const weekStart = agora ? addDays(agora.monday, offset * 7) : null;
-  const board = boards[offset] ?? emptyBoard();
+  const weekStart = useMemo(
+    () => (agora ? addDays(agora.monday, offset * 7) : null),
+    [agora, offset],
+  );
+  const weekISO = useMemo(
+    () => (weekStart ? toISODate(weekStart) : null),
+    [weekStart],
+  );
+
+  // Carrega os cards da semana visível sempre que a semana ou a sessão mudam.
+  useEffect(() => {
+    if (!session || !weekISO) return;
+    let cancelado = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- início do carregamento
+    setCarregando(true);
+    setErro(null);
+    fetchWeek(session.token, weekISO)
+      .then((b) => {
+        if (cancelado) return;
+        boardRef.current = b;
+        setBoard(b);
+      })
+      .catch((e: unknown) => {
+        if (!cancelado) {
+          setErro(e instanceof Error ? e.message : "Erro ao carregar a semana");
+        }
+      })
+      .finally(() => {
+        if (!cancelado) setCarregando(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [session, weekISO]);
+
+  // Persiste o snapshot da semana (debounce).
+  const scheduleSave = useCallback(
+    (next: BoardState) => {
+      if (!session || !weekISO) return;
+      const token = session.token;
+      const iso = weekISO;
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        saveWeek(token, iso, next).catch((e: unknown) =>
+          setErro(e instanceof Error ? e.message : "Erro ao salvar"),
+        );
+      }, 500);
+    },
+    [session, weekISO],
+  );
+
+  // Aplica um novo board (render + ref) e, opcionalmente, agenda a persistência.
+  const applyBoard = useCallback(
+    (next: BoardState, persist = true) => {
+      boardRef.current = next;
+      setBoard(next);
+      if (persist) scheduleSave(next);
+    },
+    [scheduleSave],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -69,21 +152,11 @@ export default function Board() {
     return null;
   }, [activeId, board]);
 
-  // Atualiza o board da semana atualmente visível.
-  function updateCurrent(fn: (b: BoardState) => BoardState) {
-    setBoards((prev) => ({
-      ...prev,
-      [offset]: fn(prev[offset] ?? emptyBoard()),
-    }));
-  }
-
-  // Detecção de colisão baseada no ponteiro (e não no retângulo do card,
-  // que é largo e invadiria a coluna vizinha). Quando o cursor está sobre
-  // uma coluna, refina para o card mais próximo dentro dela.
   const collisionDetection: CollisionDetection = useCallback(
     (args) => {
       const pointer = pointerWithin(args);
-      const intersections = pointer.length > 0 ? pointer : rectIntersection(args);
+      const intersections =
+        pointer.length > 0 ? pointer : rectIntersection(args);
       let overId = getFirstCollision(intersections, "id");
 
       if (overId != null) {
@@ -109,35 +182,35 @@ export default function Board() {
   );
 
   function findColumn(id: string): ColumnId | null {
-    if (id in board) return id;
-    return (
-      Object.keys(board).find((col) => board[col].some((c) => c.id === id)) ??
-      null
-    );
+    const b = boardRef.current;
+    if (id in b) return id;
+    return Object.keys(b).find((col) => b[col].some((c) => c.id === id)) ?? null;
   }
 
-  const handleToggle = (id: string) =>
-    updateCurrent((b) => {
-      const next: BoardState = {};
-      for (const [col, cards] of Object.entries(b)) {
-        next[col] = cards.map((c) =>
-          c.id === id ? { ...c, concluido: !c.concluido } : c,
-        );
-      }
-      return next;
-    });
+  const handleToggle = (id: string) => {
+    const b = boardRef.current;
+    const next: BoardState = {};
+    for (const [col, cards] of Object.entries(b)) {
+      next[col] = cards.map((c) =>
+        c.id === id ? { ...c, concluido: !c.concluido } : c,
+      );
+    }
+    applyBoard(next);
+  };
 
-  const handleRemove = (id: string) =>
-    updateCurrent((b) => {
-      const next: BoardState = {};
-      for (const [col, cards] of Object.entries(b)) {
-        next[col] = cards.filter((c) => c.id !== id);
-      }
-      return next;
-    });
+  const handleRemove = (id: string) => {
+    const b = boardRef.current;
+    const next: BoardState = {};
+    for (const [col, cards] of Object.entries(b)) {
+      next[col] = cards.filter((c) => c.id !== id);
+    }
+    applyBoard(next);
+  };
 
-  const handleAdd = (card: StudyCard) =>
-    updateCurrent((b) => ({ ...b, [BACKLOG_ID]: [card, ...b[BACKLOG_ID]] }));
+  const handleAdd = (card: StudyCard) => {
+    const b = boardRef.current;
+    applyBoard({ ...b, [BACKLOG_ID]: [card, ...b[BACKLOG_ID]] });
+  };
 
   function handleDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));
@@ -151,16 +224,17 @@ export default function Board() {
     const overCol = findColumn(String(over.id));
     if (!activeCol || !overCol || activeCol === overCol) return;
 
-    updateCurrent((b) => {
-      const activeItems = b[activeCol];
-      const overItems = b[overCol];
-      const moving = activeItems.find((c) => c.id === active.id);
-      if (!moving) return b;
+    const b = boardRef.current;
+    const activeItems = b[activeCol];
+    const overItems = b[overCol];
+    const moving = activeItems.find((c) => c.id === active.id);
+    if (!moving) return;
 
-      const overIndex = overItems.findIndex((c) => c.id === over.id);
-      const insertAt = overIndex >= 0 ? overIndex : overItems.length;
+    const overIndex = overItems.findIndex((c) => c.id === over.id);
+    const insertAt = overIndex >= 0 ? overIndex : overItems.length;
 
-      return {
+    applyBoard(
+      {
         ...b,
         [activeCol]: activeItems.filter((c) => c.id !== active.id),
         [overCol]: [
@@ -168,34 +242,37 @@ export default function Board() {
           moving,
           ...overItems.slice(insertAt),
         ],
-      };
-    });
+      },
+      false, // não persiste durante o arraste
+    );
   }
 
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     setActiveId(null);
-    if (!over) return;
+    if (!over) {
+      scheduleSave(boardRef.current);
+      return;
+    }
 
     const activeCol = findColumn(String(active.id));
     const overCol = findColumn(String(over.id));
-    if (!activeCol || !overCol || activeCol !== overCol) return;
+    const b = boardRef.current;
 
-    const items = board[activeCol];
-    const from = items.findIndex((c) => c.id === active.id);
-    const to = items.findIndex((c) => c.id === over.id);
-    if (from === to || to < 0) return;
-
-    updateCurrent((b) => ({
-      ...b,
-      [activeCol]: arrayMove(b[activeCol], from, to),
-    }));
+    if (activeCol && overCol && activeCol === overCol) {
+      const items = b[activeCol];
+      const from = items.findIndex((c) => c.id === active.id);
+      const to = items.findIndex((c) => c.id === over.id);
+      if (from !== to && to >= 0) {
+        applyBoard({ ...b, [activeCol]: arrayMove(items, from, to) });
+        return;
+      }
+    }
+    // Sem reordenação (ex.: só trocou de coluna no dragOver): persiste o atual.
+    scheduleSave(b);
   }
 
-  // O DndContext gera ids internos que divergem entre servidor e client,
-  // causando erro de hidratação. Por isso só renderizamos após o mount
-  // (quando `agora` foi lido do relógio).
-  if (!agora) {
+  if (!agora || !session) {
     return <div className="h-screen bg-slate-50" />;
   }
 
@@ -217,10 +294,23 @@ export default function Board() {
               Arraste as matérias para os dias da semana
             </p>
           </div>
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
-            Versão mock
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-500">
+              Olá, <strong className="text-slate-700">{session.nome}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={logout}
+              className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+            >
+              Sair
+            </button>
+          </div>
         </header>
+
+        {erro && (
+          <p className="bg-red-50 px-6 py-2 text-xs text-red-600">{erro}</p>
+        )}
 
         <div className="flex flex-1 gap-4 overflow-hidden p-4">
           {/* Sidebar esquerda: cadastro + lista de cards */}
@@ -273,6 +363,11 @@ export default function Board() {
                   {offset === 0 && (
                     <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
                       Semana atual
+                    </span>
+                  )}
+                  {carregando && (
+                    <span className="text-[11px] text-slate-400">
+                      carregando…
                     </span>
                   )}
                 </div>

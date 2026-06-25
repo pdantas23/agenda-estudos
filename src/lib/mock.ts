@@ -1,4 +1,4 @@
-import { BoardState, CorMateria, DayColumn, StudyCard } from "./types";
+import { CorMateria, DayColumn } from "./types";
 
 export const BACKLOG_ID = "backlog";
 
@@ -77,34 +77,4 @@ export const COR_CLASSES: Record<
     chip: "bg-teal-100",
     chipTexto: "text-teal-700",
   },
-};
-
-const card = (
-  id: string,
-  materia: string,
-  conteudo: string,
-  tipo: StudyCard["tipo"],
-  cor: CorMateria,
-): StudyCard => ({ id, materia, conteudo, tipo, cor, concluido: false });
-
-// Estado inicial mock do board.
-export const ESTADO_INICIAL: BoardState = {
-  [BACKLOG_ID]: [
-    card("c1", "Matemática", "Funções do 2º grau", "assunto", "sky"),
-    card("c2", "Português", "Análise sintática — orações", "assunto", "rose"),
-    card("c3", "Física", "Lista de cinemática (20 questões)", "questoes", "amber"),
-    card("c4", "História", "Revolução Industrial", "assunto", "orange"),
-  ],
-  seg: [card("c5", "Química", "Ligações químicas", "assunto", "emerald")],
-  ter: [],
-  qua: [
-    {
-      ...card("c6", "Biologia", "Simulado de genética", "questoes", "violet"),
-      concluido: true,
-    },
-  ],
-  qui: [],
-  sex: [card("c7", "Geografia", "Geopolítica mundial", "assunto", "teal")],
-  sab: [],
-  dom: [],
 };

@@ -21,7 +21,7 @@ export default function AddCardForm({ onAdd }: Props) {
     if (!podeEnviar) return;
 
     onAdd({
-      id: `card-${Date.now()}`,
+      id: crypto.randomUUID(),
       materia: materia.trim(),
       conteudo: conteudo.trim(),
       tipo,
