@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 
@@ -35,7 +36,17 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-1 items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+      <div className="relative w-full max-w-sm">
+        {/* Imagem flutuando acima do card (posição absoluta p/ não deslocá-lo) */}
+        <Image
+          src="/login-logo.png"
+          alt="Logo"
+          width={93}
+          height={200}
+          priority
+          className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2"
+        />
+        <div className="w-full rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="mb-6 text-center">
           <h1 className="text-xl font-bold text-slate-800">Agenda de Estudos</h1>
           <p className="mt-1 text-sm text-slate-400">Entre na sua conta</p>
@@ -77,6 +88,7 @@ export default function LoginPage() {
             {carregando ? "Aguarde..." : "Entrar"}
           </button>
         </form>
+        </div>
       </div>
     </div>
   );
