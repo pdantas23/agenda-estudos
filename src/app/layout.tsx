@@ -13,9 +13,32 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// URL base p/ gerar links absolutos das imagens de preview (OG/Twitter).
+// Na Vercel usa a URL de produção; em dev cai para localhost.
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : "http://localhost:3000");
+
+const titulo = "Agenda de Estudos";
+const descricao = "Organize suas matérias da semana em um calendário kanban";
+
 export const metadata: Metadata = {
-  title: "Agenda de Estudos",
-  description: "Organize suas matérias da semana em um calendário kanban",
+  metadataBase: new URL(siteUrl),
+  title: titulo,
+  description: descricao,
+  openGraph: {
+    title: titulo,
+    description: descricao,
+    type: "website",
+    locale: "pt_BR",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: titulo,
+    description: descricao,
+  },
 };
 
 export default function RootLayout({
