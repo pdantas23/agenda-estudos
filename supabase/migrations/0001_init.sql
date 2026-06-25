@@ -56,36 +56,10 @@ as $$
   select user_id from public.sessions_agenda where token = p_token;
 $$;
 
--- Cadastro: cria o usuário e já abre uma sessão.
-create or replace function public.signup_agenda(p_nome text, p_senha text)
-returns table (user_id uuid, nome text, token uuid)
-language plpgsql
-security definer
--- inclui o schema `extensions` (onde o Supabase instala o pgcrypto)
-set search_path = public, extensions
-as $$
-declare
-  v_user  public.users_agenda;
-  v_token uuid;
-begin
-  if length(coalesce(trim(p_nome), '')) = 0 or length(coalesce(p_senha, '')) = 0 then
-    raise exception 'Nome e senha são obrigatórios';
-  end if;
-
-  insert into public.users_agenda (nome, senha_hash)
-  values (trim(p_nome), crypt(p_senha, gen_salt('bf')))
-  returning * into v_user;
-
-  insert into public.sessions_agenda (user_id)
-  values (v_user.id)
-  returning sessions_agenda.token into v_token;
-
-  return query select v_user.id, v_user.nome, v_token;
-exception
-  when unique_violation then
-    raise exception 'Nome de usuário já existe';
-end;
-$$;
+-- Obs.: contas são criadas direto no banco (não há cadastro pela aplicação).
+-- Para criar um usuário, insira na tabela gerando o hash com pgcrypto:
+--   insert into public.users_agenda (nome, senha_hash)
+--   values ('joao', extensions.crypt('joao123', extensions.gen_salt('bf')));
 
 -- Login: valida nome + senha e abre uma sessão.
 create or replace function public.login_agenda(p_nome text, p_senha text)
@@ -184,7 +158,6 @@ $$;
 
 -- ── Permissões de execução para a anon key ──────────────────────────────────
 
-grant execute on function public.signup_agenda(text, text)      to anon, authenticated;
 grant execute on function public.login_agenda(text, text)       to anon, authenticated;
 grant execute on function public.logout_agenda(uuid)            to anon, authenticated;
 grant execute on function public.get_week_cards(uuid, date)     to anon, authenticated;

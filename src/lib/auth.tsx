@@ -20,7 +20,6 @@ interface AuthContextValue {
   /** false até lermos o localStorage (evita flicker/redirect indevido). */
   ready: boolean;
   login: (nome: string, senha: string) => Promise<void>;
-  signup: (nome: string, senha: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -64,9 +63,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     else localStorage.removeItem(STORAGE_KEY);
   }, []);
 
-  const auth = useCallback(
-    async (rpc: "login_agenda" | "signup_agenda", nome: string, senha: string) => {
-      const { data, error } = await getSupabase().rpc(rpc, {
+  const login = useCallback(
+    async (nome: string, senha: string) => {
+      const { data, error } = await getSupabase().rpc("login_agenda", {
         p_nome: nome,
         p_senha: senha,
       });
@@ -76,16 +75,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       persist(toSession(row));
     },
     [persist],
-  );
-
-  const login = useCallback(
-    (nome: string, senha: string) => auth("login_agenda", nome, senha),
-    [auth],
-  );
-
-  const signup = useCallback(
-    (nome: string, senha: string) => auth("signup_agenda", nome, senha),
-    [auth],
   );
 
   const logout = useCallback(async () => {
@@ -101,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session, persist]);
 
   return (
-    <AuthContext.Provider value={{ session, ready, login, signup, logout }}>
+    <AuthContext.Provider value={{ session, ready, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
