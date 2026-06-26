@@ -1,6 +1,6 @@
 export type ColumnId = string;
 
-export type CardTipo = "assunto" | "questoes";
+export type CardTipo = "assunto" | "questoes" | "revisao" | "mapeamento";
 
 export interface StudyCard {
   id: string;

@@ -1,6 +1,18 @@
-import { CorMateria, DayColumn } from "./types";
+import { CardTipo, CorMateria, DayColumn } from "./types";
 
 export const BACKLOG_ID = "backlog";
+
+// Categorias (tipo) disponíveis para um card, na ordem exibida no dropdown.
+export const TIPOS: { value: CardTipo; label: string }[] = [
+  { value: "assunto", label: "Assunto" },
+  { value: "questoes", label: "Questões" },
+  { value: "revisao", label: "Revisão" },
+  { value: "mapeamento", label: "Mapeamento" },
+];
+
+export const TIPO_LABELS = Object.fromEntries(
+  TIPOS.map((t) => [t.value, t.label]),
+) as Record<CardTipo, string>;
 
 export const DIAS: DayColumn[] = [
   { id: "seg", label: "Segunda", curto: "Seg" },

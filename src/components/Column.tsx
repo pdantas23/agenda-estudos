@@ -13,6 +13,7 @@ interface Props {
   cards: StudyCard[];
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
+  onEdit: (id: string) => void;
   /** Coluna de dia (preenche a célula) ou backlog (lista simples). */
   variant?: "dia" | "backlog";
 }
@@ -22,6 +23,7 @@ export default function Column({
   cards,
   onToggle,
   onRemove,
+  onEdit,
   variant = "dia",
 }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id });
@@ -45,6 +47,7 @@ export default function Column({
             card={card}
             onToggle={onToggle}
             onRemove={onRemove}
+            onEdit={onEdit}
           />
         ))}
       </SortableContext>

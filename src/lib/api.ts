@@ -19,15 +19,25 @@ const emptyBoard = (): BoardState => ({
   ...Object.fromEntries(DIAS.map((d) => [d.id, []])),
 });
 
-/** Carrega os cards de uma semana e os agrupa por coluna. */
+/**
+ * Carrega os cards de uma semana e os agrupa por coluna.
+ *
+ * Para a semana atual passe `ensure = true`: isso usa a RPC que, na primeira
+ * abertura da semana, traz de volta para a lista os cards da semana anterior
+ * (rollover). Para semanas passadas/futuras use `ensure = false`.
+ */
 export async function fetchWeek(
   token: string,
   weekStartISO: string,
+  ensure = false,
 ): Promise<BoardState> {
-  const { data, error } = await getSupabase().rpc("get_week_cards", {
-    p_token: token,
-    p_week_start: weekStartISO,
-  });
+  const { data, error } = await getSupabase().rpc(
+    ensure ? "ensure_week_cards" : "get_week_cards",
+    {
+      p_token: token,
+      p_week_start: weekStartISO,
+    },
+  );
   if (error) throw new Error(error.message);
 
   const board = emptyBoard();

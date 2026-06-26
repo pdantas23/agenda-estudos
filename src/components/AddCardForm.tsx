@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CORES, COR_CLASSES } from "@/lib/mock";
+import { CORES, COR_CLASSES, TIPOS } from "@/lib/mock";
 import { CardTipo, CorMateria, StudyCard } from "@/lib/types";
 
 interface Props {
@@ -53,30 +53,20 @@ export default function AddCardForm({ onAdd }: Props) {
         className="resize-none rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
       />
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setTipo("assunto")}
-          className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
-            tipo === "assunto"
-              ? "border-indigo-400 bg-indigo-50 text-indigo-700"
-              : "border-slate-200 text-slate-500 hover:bg-slate-50"
-          }`}
+      <label className="flex flex-col gap-1 text-xs text-slate-400">
+        Categoria
+        <select
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value as CardTipo)}
+          className="rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
         >
-          Assunto
-        </button>
-        <button
-          type="button"
-          onClick={() => setTipo("questoes")}
-          className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
-            tipo === "questoes"
-              ? "border-indigo-400 bg-indigo-50 text-indigo-700"
-              : "border-slate-200 text-slate-500 hover:bg-slate-50"
-          }`}
-        >
-          Questões
-        </button>
-      </div>
+          {TIPOS.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <div className="flex items-center gap-2">
         <span className="text-xs text-slate-400">Cor:</span>

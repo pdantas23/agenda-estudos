@@ -29,6 +29,7 @@ import { fetchWeek, saveWeek } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { BoardState, ColumnId, StudyCard } from "@/lib/types";
 import AddCardForm from "./AddCardForm";
+import CardEditModal from "./CardEditModal";
 import Column from "./Column";
 import StudyCardItem from "./StudyCardItem";
 
@@ -43,6 +44,7 @@ export default function Board() {
   const [board, setBoard] = useState<BoardState>(emptyBoard);
   const [offset, setOffset] = useState(0);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -94,7 +96,7 @@ export default function Board() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- início do carregamento
     setCarregando(true);
     setErro(null);
-    fetchWeek(session.token, weekISO)
+    fetchWeek(session.token, weekISO, offset === 0)
       .then((b) => {
         if (cancelado) return;
         boardRef.current = b;
@@ -111,7 +113,7 @@ export default function Board() {
     return () => {
       cancelado = true;
     };
-  }, [session, weekISO]);
+  }, [session, weekISO, offset]);
 
   // Persiste o snapshot da semana (debounce).
   const scheduleSave = useCallback(
@@ -151,6 +153,15 @@ export default function Board() {
     }
     return null;
   }, [activeId, board]);
+
+  const editingCard = useMemo(() => {
+    if (!editingId) return null;
+    for (const col of Object.values(board)) {
+      const found = col.find((c) => c.id === editingId);
+      if (found) return found;
+    }
+    return null;
+  }, [editingId, board]);
 
   const collisionDetection: CollisionDetection = useCallback(
     (args) => {
@@ -205,6 +216,16 @@ export default function Board() {
       next[col] = cards.filter((c) => c.id !== id);
     }
     applyBoard(next);
+  };
+
+  const handleEdit = (updated: StudyCard) => {
+    const b = boardRef.current;
+    const next: BoardState = {};
+    for (const [col, cards] of Object.entries(b)) {
+      next[col] = cards.map((c) => (c.id === updated.id ? updated : c));
+    }
+    applyBoard(next);
+    setEditingId(null);
   };
 
   const handleAdd = (card: StudyCard) => {
@@ -329,6 +350,7 @@ export default function Board() {
                   cards={board[BACKLOG_ID]}
                   onToggle={handleToggle}
                   onRemove={handleRemove}
+                  onEdit={setEditingId}
                   variant="backlog"
                 />
               </div>
@@ -438,6 +460,7 @@ export default function Board() {
                         cards={cards}
                         onToggle={handleToggle}
                         onRemove={handleRemove}
+                        onEdit={setEditingId}
                       />
                     </div>
                   </div>
@@ -458,6 +481,14 @@ export default function Board() {
           />
         ) : null}
       </DragOverlay>
+
+      {editingCard && (
+        <CardEditModal
+          card={editingCard}
+          onSave={handleEdit}
+          onClose={() => setEditingId(null)}
+        />
+      )}
     </DndContext>
   );
 }

@@ -2,13 +2,14 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { COR_CLASSES } from "@/lib/mock";
+import { COR_CLASSES, TIPO_LABELS } from "@/lib/mock";
 import { StudyCard } from "@/lib/types";
 
 interface Props {
   card: StudyCard;
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
+  onEdit?: (id: string) => void;
   /** Quando true, renderiza só a aparência (usado no DragOverlay). */
   overlay?: boolean;
 }
@@ -17,6 +18,7 @@ export default function StudyCardItem({
   card,
   onToggle,
   onRemove,
+  onEdit,
   overlay,
 }: Props) {
   const {
@@ -61,14 +63,28 @@ export default function StudyCardItem({
         >
           {card.materia}
         </span>
-        <button
-          type="button"
-          onClick={() => onRemove(card.id)}
-          className="shrink-0 text-slate-300 opacity-0 transition hover:text-red-500 group-hover:opacity-100"
-          aria-label="Remover card"
-        >
-          ✕
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {onEdit && (
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => onEdit(card.id)}
+              className="text-slate-300 opacity-0 transition hover:text-indigo-500 group-hover:opacity-100"
+              aria-label="Editar card"
+            >
+              ✎
+            </button>
+          )}
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onRemove(card.id)}
+            className="text-slate-300 opacity-0 transition hover:text-red-500 group-hover:opacity-100"
+            aria-label="Remover card"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <p
@@ -80,7 +96,7 @@ export default function StudyCardItem({
       </p>
 
       <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-        {card.tipo === "questoes" ? "Questões" : "Assunto"}
+        {TIPO_LABELS[card.tipo]}
       </span>
 
       <div className="mt-0.5 border-t border-slate-100 pt-1.5">
