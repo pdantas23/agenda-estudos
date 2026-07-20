@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { COR_CLASSES, TIPO_LABELS } from "@/lib/mock";
@@ -14,7 +15,9 @@ interface Props {
   overlay?: boolean;
 }
 
-export default function StudyCardItem({
+// Memoizado pelo mesmo motivo do Column: evita re-renderizar cards que não
+// mudaram de referência durante um arraste rápido entre colunas.
+function StudyCardItem({
   card,
   onToggle,
   onRemove,
@@ -113,3 +116,5 @@ export default function StudyCardItem({
     </div>
   );
 }
+
+export default memo(StudyCardItem);

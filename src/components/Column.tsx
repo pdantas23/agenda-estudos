@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -18,7 +19,10 @@ interface Props {
   variant?: "dia" | "backlog";
 }
 
-export default function Column({
+// Memoizado: durante um arraste entre colunas só as colunas afetadas mudam de
+// referência (cards/onToggle/onRemove); sem isso, todo o board re-renderiza a
+// cada evento de dragOver.
+function Column({
   id,
   cards,
   onToggle,
@@ -60,3 +64,5 @@ export default function Column({
     </div>
   );
 }
+
+export default memo(Column);

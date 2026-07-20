@@ -38,6 +38,10 @@ const emptyBoard = (): BoardState => ({
   ...Object.fromEntries(DIAS.map((d) => [d.id, []])),
 });
 
+// Referência estável: se recriado a cada render, useSensors monta um array
+// novo de sensores em todo render do Board (inclusive durante o arraste).
+const POINTER_ACTIVATION_CONSTRAINT = { distance: 5 };
+
 export default function Board() {
   const { session, logout } = useAuth();
 
@@ -142,7 +146,9 @@ export default function Board() {
   );
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: POINTER_ACTIVATION_CONSTRAINT,
+    }),
   );
 
   const activeCard = useMemo(() => {
@@ -163,34 +169,37 @@ export default function Board() {
     return null;
   }, [editingId, board]);
 
-  const collisionDetection: CollisionDetection = useCallback(
-    (args) => {
-      const pointer = pointerWithin(args);
-      const intersections =
-        pointer.length > 0 ? pointer : rectIntersection(args);
-      let overId = getFirstCollision(intersections, "id");
+  // Usa boardRef (não o state `board`) para não depender de um valor que só
+  // fica atualizado após o commit do React — em arrastes rápidos, vários
+  // eventos de drag disparam antes do próximo render, e ler o state aqui
+  // devolveria uma coluna desatualizada. Como bônus, a callback fica com
+  // identidade estável entre renders.
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    const b = boardRef.current;
+    const pointer = pointerWithin(args);
+    const intersections =
+      pointer.length > 0 ? pointer : rectIntersection(args);
+    let overId = getFirstCollision(intersections, "id");
 
-      if (overId != null) {
-        if (typeof overId === "string" && overId in board) {
-          const itemIds = board[overId].map((c) => c.id);
-          if (itemIds.length > 0) {
-            const closest = closestCenter({
-              ...args,
-              droppableContainers: args.droppableContainers.filter(
-                (container) =>
-                  container.id !== overId &&
-                  itemIds.includes(String(container.id)),
-              ),
-            })[0];
-            if (closest) overId = closest.id;
-          }
+    if (overId != null) {
+      if (typeof overId === "string" && overId in b) {
+        const itemIds = b[overId].map((c) => c.id);
+        if (itemIds.length > 0) {
+          const closest = closestCenter({
+            ...args,
+            droppableContainers: args.droppableContainers.filter(
+              (container) =>
+                container.id !== overId &&
+                itemIds.includes(String(container.id)),
+            ),
+          })[0];
+          if (closest) overId = closest.id;
         }
-        return [{ id: overId }];
       }
-      return [];
-    },
-    [board],
-  );
+      return [{ id: overId }];
+    }
+    return [];
+  }, []);
 
   function findColumn(id: string): ColumnId | null {
     const b = boardRef.current;
@@ -198,25 +207,31 @@ export default function Board() {
     return Object.keys(b).find((col) => b[col].some((c) => c.id === id)) ?? null;
   }
 
-  const handleToggle = (id: string) => {
-    const b = boardRef.current;
-    const next: BoardState = {};
-    for (const [col, cards] of Object.entries(b)) {
-      next[col] = cards.map((c) =>
-        c.id === id ? { ...c, concluido: !c.concluido } : c,
-      );
-    }
-    applyBoard(next);
-  };
+  const handleToggle = useCallback(
+    (id: string) => {
+      const b = boardRef.current;
+      const next: BoardState = {};
+      for (const [col, cards] of Object.entries(b)) {
+        next[col] = cards.map((c) =>
+          c.id === id ? { ...c, concluido: !c.concluido } : c,
+        );
+      }
+      applyBoard(next);
+    },
+    [applyBoard],
+  );
 
-  const handleRemove = (id: string) => {
-    const b = boardRef.current;
-    const next: BoardState = {};
-    for (const [col, cards] of Object.entries(b)) {
-      next[col] = cards.filter((c) => c.id !== id);
-    }
-    applyBoard(next);
-  };
+  const handleRemove = useCallback(
+    (id: string) => {
+      const b = boardRef.current;
+      const next: BoardState = {};
+      for (const [col, cards] of Object.entries(b)) {
+        next[col] = cards.filter((c) => c.id !== id);
+      }
+      applyBoard(next);
+    },
+    [applyBoard],
+  );
 
   const handleEdit = (updated: StudyCard) => {
     const b = boardRef.current;
