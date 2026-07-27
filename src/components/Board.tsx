@@ -51,6 +51,7 @@ export default function Board() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [sidebarAberta, setSidebarAberta] = useState(true);
 
   // boardRef espelha o estado para cálculos síncronos durante o arraste.
   const boardRef = useRef<BoardState>(board);
@@ -348,29 +349,55 @@ export default function Board() {
           <p className="bg-red-50 px-6 py-2 text-xs text-red-600">{erro}</p>
         )}
 
-        <div className="flex flex-1 gap-4 overflow-hidden p-4">
-          {/* Sidebar esquerda: cadastro + lista de cards */}
-          <aside className="flex w-80 shrink-0 flex-col gap-4 overflow-hidden">
-            <AddCardForm onAdd={handleAdd} />
-            <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white p-3">
-              <h2 className="mb-2 px-1 text-sm font-semibold text-slate-600">
-                Matérias da semana
-                <span className="ml-1.5 text-slate-400">
-                  ({board[BACKLOG_ID].length})
-                </span>
-              </h2>
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <Column
-                  id={BACKLOG_ID}
-                  cards={board[BACKLOG_ID]}
-                  onToggle={handleToggle}
-                  onRemove={handleRemove}
-                  onEdit={setEditingId}
-                  variant="backlog"
-                />
+        <div className="flex flex-1 gap-3 overflow-hidden p-4">
+          {/* Sidebar esquerda: cadastro + lista de cards (recolhível) */}
+          <aside
+            className={`flex shrink-0 flex-col overflow-hidden transition-[width] duration-300 ease-in-out ${
+              sidebarAberta ? "w-80" : "w-0"
+            }`}
+          >
+            <div className="flex h-full w-80 shrink-0 flex-col gap-4">
+              <AddCardForm onAdd={handleAdd} />
+              <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white p-3">
+                <h2 className="mb-2 px-1 text-sm font-semibold text-slate-600">
+                  Matérias da semana
+                  <span className="ml-1.5 text-slate-400">
+                    ({board[BACKLOG_ID].length})
+                  </span>
+                </h2>
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <Column
+                    id={BACKLOG_ID}
+                    cards={board[BACKLOG_ID]}
+                    onToggle={handleToggle}
+                    onRemove={handleRemove}
+                    onEdit={setEditingId}
+                    variant="backlog"
+                  />
+                </div>
               </div>
             </div>
           </aside>
+
+          <button
+            type="button"
+            onClick={() => setSidebarAberta((v) => !v)}
+            aria-label={
+              sidebarAberta ? "Recolher barra lateral" : "Expandir barra lateral"
+            }
+            title={
+              sidebarAberta ? "Recolher barra lateral" : "Expandir barra lateral"
+            }
+            className="flex h-9 w-5 shrink-0 select-none items-center justify-center self-center rounded-md border border-slate-200 bg-white text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
+          >
+            <span
+              className={`transition-transform duration-300 ${
+                sidebarAberta ? "" : "rotate-180"
+              }`}
+            >
+              ‹
+            </span>
+          </button>
 
           {/* Calendário semanal kanban */}
           <main className="flex min-w-0 flex-1 flex-col gap-3">
